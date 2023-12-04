@@ -29,8 +29,6 @@ import { load } from 'cheerio';
 import { PlaylistEpisodeServer } from '@mochiapp/js/src/contents/video/types';
 import { getServerSources } from './utils/getServerUrl';
 
-export * from './res'
-
 const BASENAME = 'https://anitaku.to'
 const AJAX_BASENAME = 'https://ajax.gogo-load.com/ajax/'
 
@@ -52,12 +50,12 @@ export default class Source extends SourceModule implements VideoContent {
     const currentPageIndex = pages.filter('li.selected').index();
     const items: Playlist[] = $('.items > li').map((i, anime) => {
       const animeRef = $(anime);
-      const url = animeRef.find('div > a').attr('href')!;
+      const url = animeRef.find('div > a').attr('href')!.split('/').at(-1)!;
       const name = animeRef.find('.name > a').text();
       const img = animeRef.find('.img > a > img').attr('src')!;
       return {
         id: url,
-        url: `${BASENAME}${url}`,
+        url: `${BASENAME}/category/${url}`,
         status: PlaylistStatus.unknown,
         type: PlaylistType.video,
         title: name,
@@ -176,17 +174,24 @@ export default class Source extends SourceModule implements VideoContent {
       })
     }).get()
     const movieId = $('#movie_id').attr('value')!
-    const episodes = load(await request.get(`${AJAX_BASENAME}/load-list-episode?ep_start=${pages[0].episodeStart}&ep_end=${pages.at(-1)?.episodeEnd}&id=${movieId}&default_ep=${0}&alias=${playlistId}`).then(t => t.text()))
-    const video = episodes('#episode_related > li').map((i, episode) => {
-      const link = episodes(episode).find('a').attr('href')?.slice(2)!
-      const title = $(episode).find('.name').text();
+    const pagings = await Promise.all(pages.map(async (page) => {
+      const episodes = load(await request.get(`${AJAX_BASENAME}/load-list-episode?ep_start=${page.episodeStart}&ep_end=${page.episodeEnd}&id=${movieId}&default_ep=${0}&alias=${playlistId}`).then(t => t.text()))
+      const video = episodes('#episode_related > li').map((i, episode) => {
+        const link = episodes(episode).find('a').attr('href')?.slice(2)!
+        const title = $(episode).find('.name').text();
+        return {
+          id: link,
+          title,
+          number: parseInt(title.split(" ")[1], 10),
+          tags: [],
+        } satisfies PlaylistItem
+      }).get().reverse()
       return {
-        id: link,
-        title,
-        number: parseInt(title.split(" ")[1], 10),
-        tags: [],
-      } satisfies PlaylistItem
-    }).get().reverse()
+        id: `${page.episodeStart}-${page.episodeEnd}`,
+        title: `${page.episodeStart}-${page.episodeEnd}`,
+        items: video
+      }
+    }))
 
     return [{
       id: 'gogo-playlist',
@@ -194,11 +199,7 @@ export default class Source extends SourceModule implements VideoContent {
       variants: [{
         id: 'GogoCDN',
         title: "GogoCDN",
-        pagings: pages.map((page, i) => ({
-          id: `${page.episodeStart}-${page.episodeEnd}`,
-          title: `${page.episodeStart}-${page.episodeEnd}`,
-          items: video
-        }))
+        pagings,
       }]
     }]
   }
