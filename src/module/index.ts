@@ -139,7 +139,7 @@ export default class Source extends SourceModule implements VideoContent {
         // @ts-ignore
         quality: PlaylistEpisodeServerQualityType[source.quality] ?? PlaylistEpisodeServerQualityType.auto,
         format: PlaylistEpisodeServerFormatType.dash
-      })),
+      })).sort((a, b) => b.quality - a.quality),
       skipTimes: [],
       headers: {},
       subtitles: [],

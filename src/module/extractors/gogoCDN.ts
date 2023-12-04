@@ -2,7 +2,6 @@ import { CheerioAPI, load } from 'cheerio';
 import CryptoJS from 'crypto-js';
 
 import { VideoExtractor, IVideo } from '../models';
-import { USER_AGENT } from '../utils';
 import { gup } from '../utils/utils';
 
 class GogoCDN extends VideoExtractor {
@@ -76,45 +75,6 @@ class GogoCDN extends VideoExtractor {
     });
 
     return this.sources;
-  };
-
-  private addSources = async (source: any) => {
-    if (source.file.includes('m3u8')) {
-      const m3u8Urls: any = await request
-        .get(source.file, {
-          headers: {
-            Referer: this.referer,
-            'User-Agent': USER_AGENT,
-          },
-        })
-        .then(r => r.json())
-        .catch(() => null);
-
-      const videoList = m3u8Urls?.split('#EXT-X-I-FRAME-STREAM-INF:');
-      for (const video of videoList ?? []) {
-        if (!video.includes('m3u8')) continue;
-
-        const url = video
-          .split('\n')
-          .find((line: any) => line.includes('URI='))
-          .split('URI=')[1]
-          .replace(/"/g, '');
-
-        const quality = video.split('RESOLUTION=')[1].split(',')[0].split('x')[1];
-
-        this.sources.push({
-          url: url,
-          quality: `${quality}p`,
-          isM3U8: true,
-        });
-      }
-
-      return;
-    }
-    this.sources.push({
-      url: source.file,
-      isM3U8: source.file.includes('.m3u8'),
-    });
   };
 
   private generateEncryptedAjaxParams = async ($: CheerioAPI, id: string): Promise<string> => {
