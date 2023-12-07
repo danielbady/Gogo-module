@@ -41,7 +41,7 @@ export default class Source extends SourceModule implements VideoContent {
   metadata = {
     id: 'GoGoAnimeSource',
     name: 'GoGoAnime Source',
-    version: '1.0.0',
+    version: '1.0.1',
   }
 
   async searchFilters(): Promise<SearchFilter[]>  {
