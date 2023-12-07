@@ -8,7 +8,7 @@
     {
       "id": "GoGoAnimeSource",
       "name": "GoGoAnime Source",
-      "version": "0.0.1",
+      "version": "1.0.0",
       "file": "/modules/module.js",
       "meta": [],
       "mochiJSVersion": "0.0.2"
