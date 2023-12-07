@@ -1,11 +1,15 @@
-import { DiscoverListingOrientationType, DiscoverListingType } from '@mochiapp/js/src/interfaces/source/types';
+import {
+  DiscoverListingOrientationType,
+  DiscoverListingType,
+  PlaylistGroupID
+} from '@mochiapp/js/src/interfaces/source/types';
 
 import type {
   DiscoverListing,
   DiscoverListingsRequest,
   Paging,
   Playlist,
-  PlaylistDetails,
+  PlaylistDetails, PlaylistGroup,
   PlaylistItem,
   SearchFilter,
   SearchQuery,
@@ -164,8 +168,16 @@ export default class Source extends SourceModule implements VideoContent {
 
   async playlistEpisodes(playlistId: PlaylistID, options?: PlaylistItemsOptions): Promise<PlaylistItemsResponse> {
     const alwaysSub = playlistId.replace(/-dub$/g, '')
-    const variants = await Promise.all([alwaysSub, `${alwaysSub}-dub`].map(async (id, i) => {
-      const html = await request.get(`${BASENAME}/category/${id}`)
+    let variants = []
+    const variantsGroups: PlaylistGroupID[] = [alwaysSub, `${alwaysSub}-dub`]
+    for (const i in variantsGroups) {
+      let html
+      try {
+        html = await request.get(`${BASENAME}/category/${variantsGroups[i]}`)
+      } catch {
+        continue
+      }
+
       const $ = load(html.text());
       const pages = $('#episode_page > li').map((_, page) => {
         const a = $(page).find('a')
@@ -176,7 +188,7 @@ export default class Source extends SourceModule implements VideoContent {
       }).get()
       const movieId = $('#movie_id').attr('value')!
       const pagings = await Promise.all(pages.map(async (page) => {
-        const episodes = load(await request.get(`${AJAX_BASENAME}/load-list-episode?ep_start=${page.episodeStart}&ep_end=${page.episodeEnd}&id=${movieId}&default_ep=${0}&alias=${id}`).then(t => t.text()))
+        const episodes = load(await request.get(`${AJAX_BASENAME}/load-list-episode?ep_start=${page.episodeStart}&ep_end=${page.episodeEnd}&id=${movieId}&default_ep=${0}&alias=${variantsGroups[i]}`).then(t => t.text()))
         const video = episodes('#episode_related > li').map((i, episode) => {
           const link = episodes(episode).find('a').attr('href')?.slice(2)!
           const title = $(episode).find('.name').text();
@@ -193,14 +205,12 @@ export default class Source extends SourceModule implements VideoContent {
           items: video
         }
       }))
-
-      return {
+      variants.push({
         id: VARIANTS[i],
         title: VARIANTS[i],
         pagings,
-      }
-    }))
-
+      })
+    }
     return [{
       id: 'gogo-playlist',
       number: 1,
