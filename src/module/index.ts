@@ -31,6 +31,7 @@ import { getServerSources } from './utils/getServerUrl';
 
 const BASENAME = 'https://anitaku.to'
 const AJAX_BASENAME = 'https://ajax.gogo-load.com/ajax/'
+const VARIANTS = ['SUB', 'DUB']
 
 export default class Source extends SourceModule implements VideoContent {
   metadata = {
@@ -75,7 +76,6 @@ export default class Source extends SourceModule implements VideoContent {
   }
 
   async discoverListings(listingsRequest?: DiscoverListingsRequest | undefined): Promise<DiscoverListing[]> {
-    // const response = discoverListingsResponseSchema.parse(await request.get(`https://anime-api-gray.vercel.app/anime/gogoanime/top-airing?page=${listingsRequest?.page ?? 1}`).then(r => r.json()));
     const html = await request.get(`${BASENAME}/popular.html&page=${listingsRequest?.page ?? 1}`)
     const $ = load(html.text());
     const pages = $('ul.pagination-list > li');
@@ -133,7 +133,6 @@ export default class Source extends SourceModule implements VideoContent {
   async playlistEpisodeServer(req: PlaylistEpisodeServerRequest): Promise<PlaylistEpisodeServerResponse> {
     const sources = await getServerSources(`${BASENAME}/${req.episodeId}`, req.sourceId);
     return {
-      // @ts-ignore
       links: sources.map((source) => ({
         url: source.url,
         // @ts-ignore
@@ -164,43 +163,48 @@ export default class Source extends SourceModule implements VideoContent {
   }
 
   async playlistEpisodes(playlistId: PlaylistID, options?: PlaylistItemsOptions): Promise<PlaylistItemsResponse> {
-    const html = await request.get(`${BASENAME}/category/${playlistId}`)
-    const $ = load(html.text());
-    const pages = $('#episode_page > li').map((_, page) => {
-      const a = $(page).find('a')
-      return ({
-        episodeStart: a.attr('ep_start'),
-        episodeEnd: a.attr('ep_end'),
-      })
-    }).get()
-    const movieId = $('#movie_id').attr('value')!
-    const pagings = await Promise.all(pages.map(async (page) => {
-      const episodes = load(await request.get(`${AJAX_BASENAME}/load-list-episode?ep_start=${page.episodeStart}&ep_end=${page.episodeEnd}&id=${movieId}&default_ep=${0}&alias=${playlistId}`).then(t => t.text()))
-      const video = episodes('#episode_related > li').map((i, episode) => {
-        const link = episodes(episode).find('a').attr('href')?.slice(2)!
-        const title = $(episode).find('.name').text();
+    const alwaysSub = playlistId.replace(/-dub$/g, '')
+    const variants = await Promise.all([alwaysSub, `${alwaysSub}-dub`].map(async (id, i) => {
+      const html = await request.get(`${BASENAME}/category/${id}`)
+      const $ = load(html.text());
+      const pages = $('#episode_page > li').map((_, page) => {
+        const a = $(page).find('a')
+        return ({
+          episodeStart: a.attr('ep_start'),
+          episodeEnd: a.attr('ep_end'),
+        })
+      }).get()
+      const movieId = $('#movie_id').attr('value')!
+      const pagings = await Promise.all(pages.map(async (page) => {
+        const episodes = load(await request.get(`${AJAX_BASENAME}/load-list-episode?ep_start=${page.episodeStart}&ep_end=${page.episodeEnd}&id=${movieId}&default_ep=${0}&alias=${id}`).then(t => t.text()))
+        const video = episodes('#episode_related > li').map((i, episode) => {
+          const link = episodes(episode).find('a').attr('href')?.slice(2)!
+          const title = $(episode).find('.name').text();
+          return {
+            id: link,
+            title,
+            number: parseInt(title.split(" ")[1], 10),
+            tags: [],
+          } satisfies PlaylistItem
+        }).get().reverse()
         return {
-          id: link,
-          title,
-          number: parseInt(title.split(" ")[1], 10),
-          tags: [],
-        } satisfies PlaylistItem
-      }).get().reverse()
+          id: `${page.episodeStart}-${page.episodeEnd}`,
+          title: `${page.episodeStart}-${page.episodeEnd}`,
+          items: video
+        }
+      }))
+
       return {
-        id: `${page.episodeStart}-${page.episodeEnd}`,
-        title: `${page.episodeStart}-${page.episodeEnd}`,
-        items: video
+        id: VARIANTS[i],
+        title: VARIANTS[i],
+        pagings,
       }
     }))
 
     return [{
       id: 'gogo-playlist',
       number: 1,
-      variants: [{
-        id: 'GogoCDN',
-        title: "GogoCDN",
-        pagings,
-      }]
+      variants: variants,
     }]
   }
 }
