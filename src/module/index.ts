@@ -35,13 +35,12 @@ import { getServerSources } from './utils/getServerUrl';
 
 const BASENAME = 'https://anitaku.to'
 const AJAX_BASENAME = 'https://ajax.gogo-load.com/ajax/'
-const VARIANTS = ['SUB', 'DUB']
 
 export default class Source extends SourceModule implements VideoContent {
   metadata = {
     id: 'GoGoAnimeSource',
     name: 'GoGoAnime Source',
-    version: '1.0.1',
+    version: '1.0.2',
   }
 
   async searchFilters(): Promise<SearchFilter[]>  {
@@ -168,8 +167,9 @@ export default class Source extends SourceModule implements VideoContent {
 
   async playlistEpisodes(playlistId: PlaylistID, options?: PlaylistItemsOptions): Promise<PlaylistItemsResponse> {
     const variantGroups = playlistId.endsWith('-dub') ? [playlistId, playlistId.replace('-dub', '')] : [playlistId, `${playlistId}-dub`]
-    const variants = await Promise.all(variantGroups.map(async (id, i) => {
-      const html = await request.get(`${BASENAME}/category/${id}`)
+    let variants = await Promise.all(variantGroups.map(async id => {
+      const variantId = id.endsWith("-dub") ? "DUB" : "SUB";
+      const html = await request.get(`${BASENAME}/category/${id}`);
       const $ = load(html.text());
       const pages = $('#episode_page > li').map((_, page) => {
         const a = $(page).find('a')
@@ -198,8 +198,8 @@ export default class Source extends SourceModule implements VideoContent {
         }
       }))
       return {
-        id: `${movieId}-${VARIANTS[i]}`,
-        title: VARIANTS[i],
+        id: `${movieId}-${variantId}`,
+        title: variantId,
         pagings,
       }
     }))
