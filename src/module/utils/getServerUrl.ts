@@ -1,6 +1,5 @@
 import { load } from 'cheerio';
 import GogoCDN from '../extractors/gogoCDN';
-import { IVideo } from '../models';
 
 export async function getServerSources(url: string, sourceId: string) {
   const $ = load( await request.get(url).then(t => t.text()));

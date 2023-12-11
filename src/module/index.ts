@@ -1,15 +1,11 @@
-import {
-  DiscoverListingOrientationType,
-  DiscoverListingType,
-  PlaylistGroupID
-} from '@mochiapp/js/src/interfaces/source/types';
+import { DiscoverListingOrientationType, DiscoverListingType, } from '@mochiapp/js/src/interfaces/source/types';
 
 import type {
   DiscoverListing,
   DiscoverListingsRequest,
   Paging,
   Playlist,
-  PlaylistDetails, PlaylistGroup,
+  PlaylistDetails,
   PlaylistItem,
   SearchFilter,
   SearchQuery,
@@ -40,7 +36,7 @@ export default class Source extends SourceModule implements VideoContent {
   metadata = {
     id: 'GoGoAnimeSource',
     name: 'GoGoAnime Source',
-    version: '1.0.2',
+    version: '1.1.0',
   }
 
   async searchFilters(): Promise<SearchFilter[]>  {
@@ -54,9 +50,9 @@ export default class Source extends SourceModule implements VideoContent {
     const currentPageIndex = pages.filter('li.selected').index();
     const items: Playlist[] = $('.items > li').map((i, anime) => {
       const animeRef = $(anime);
-      const url = animeRef.find('div > a').attr('href')!.split('/').at(-1)!;
+      const url = animeRef.find('div > a').attr('href')?.split('/').at(-1) ?? '';
       const name = animeRef.find('.name > a').text();
-      const img = animeRef.find('.img > a > img').attr('src')!;
+      const img = animeRef.find('.img > a > img').attr('src') ?? '';
       return {
         id: url,
         url: `${BASENAME}/category/${url}`,
@@ -79,52 +75,71 @@ export default class Source extends SourceModule implements VideoContent {
   }
 
   async discoverListings(listingsRequest?: DiscoverListingsRequest | undefined): Promise<DiscoverListing[]> {
-    const html = await request.get(`${BASENAME}/popular.html&page=${listingsRequest?.page ?? 1}`)
-    const $ = load(html.text());
-    const pages = $('ul.pagination-list > li');
-    const currentPageIndex = pages.filter('li.selected').index();
-    const items: Playlist[] = $('.items > li').map((i, anime) => {
-      const animeRef = $(anime);
-      const url = animeRef.find('div > a').attr('href')!;
-      const name = animeRef.find('.name > a').text();
-      const img = animeRef.find('.img > a > img').attr('src')!;
-      return {
-        id: url.split('/').at(-1)!,
-        url: `${BASENAME}${url}`,
-        status: PlaylistStatus.unknown,
-        type: PlaylistType.video,
-        title: name,
-        bannerImage: img,
-        posterImage: img,
-      } satisfies Playlist
-    }).get();
-
-    const hasNextPage = pages.length > currentPageIndex + 2
-    return [{
-      title: "GogoAnime",
+    return Promise.all([{
+      url: `${BASENAME}/popular.html&page=${listingsRequest?.page ?? 1}`,
+      title: 'Top Airing',
+      id: 'top-airing',
+      type: DiscoverListingType.rank,
+    }, {
+      url: `${BASENAME}/new-season.html&page=${listingsRequest?.page ?? 1}`,
+      title: 'Seasonal Anime',
+      id: 'new-season',
       type: DiscoverListingType.featured,
-      id: 'gogoanime',
-      orientation: DiscoverListingOrientationType.portrait,
-      paging: {
-        id: 'top-airing',
-        title: "Top Airing",
-        previousPage: `${BASENAME}/popular.html&page=${Math.max(1, currentPageIndex)}`,
-        nextPage: hasNextPage ? `${BASENAME}/popular.html&page=${Math.min(pages.length, currentPageIndex + 2)}` : undefined,
-        items: items,
+    }, {
+      url: `${BASENAME}/anime-movies.html&page=${listingsRequest?.page ?? 1}`,
+      title: 'Movies',
+      id: 'anime-movies',
+      type: DiscoverListingType.default,
+    }].map(async page => {
+      const html = await request.get(page.url)
+      const $ = load(html.text());
+      const pages = $('ul.pagination-list > li');
+      const currentPageIndex = pages.filter('li.selected').index();
+      const items: Playlist[] = $('.items > li').map((i, anime) => {
+        const animeRef = $(anime);
+        const url = animeRef.find('div > a').attr('href') ?? '';
+        const name = animeRef.find('.name > a').text();
+        const img = animeRef.find('.img > a > img').attr('src') ?? '';
+        const id = url?.split('/').at(-1) ?? animeRef.find('.img > a > img').attr('alt') ?? `${page.id}-${i}`
+        return {
+          id,
+          url: `${BASENAME}${url}`,
+          status: PlaylistStatus.unknown,
+          type: PlaylistType.video,
+          title: name,
+          bannerImage: img,
+          posterImage: img,
+        } satisfies Playlist
+      }).get();
+
+      const hasNextPage = pages.length > currentPageIndex + 2
+      const baseName = page.url.split('&')[0]
+      return {
+        title: page.title,
+        type: page.type,
+        id: page.id,
+        orientation: DiscoverListingOrientationType.landscape,
+        paging: {
+          id: 'top-airing',
+          title: "Top Airing",
+          previousPage: `${baseName}&page=${Math.max(1, currentPageIndex)}`,
+          nextPage: hasNextPage ? `${baseName}&page=${Math.min(pages.length, currentPageIndex + 2)}` : undefined,
+          items: items,
+        }
       }
-    }]
+    }))
   }
 
   async playlistDetails(id: string): Promise<PlaylistDetails> {
     const html = await request.get(`${BASENAME}/category/${id}`)
     const $ = load(html.text());
     const info = $('.anime_info_body_bg > .type')
+    const synopsis = info.get(1)?.lastChild
+    const yearReleased = info.get(3)?.lastChild;
     return {
-    // @ts-ignore
-      synopsis: info.get(1)?.lastChild.data,
+      synopsis: synopsis?.nodeType === 3 ? synopsis.data : '',
       genres: $(info.get(2)).find('a').text().split(", "),
-    // @ts-ignore
-      yearReleased: parseInt(info.get(3)?.lastChild.data, 10),
+      yearReleased: yearReleased?.nodeType === 3 ? parseInt(yearReleased.data, 10) : 0,
       previews: [],
       altBanners: [],
       altPosters: [],
@@ -151,11 +166,13 @@ export default class Source extends SourceModule implements VideoContent {
   async playlistEpisodeSources(req: PlaylistEpisodeSourcesRequest): Promise<PlaylistEpisodeSource[]> {
     const html = await request.get(`${BASENAME}/${req.episodeId}`).then(t => t.text())
     const $ = load(html)
-    const servers = $('div.anime_muti_link > ul > li').map((i, el) => ({
-      id: $(el).attr('class')!,
-      // @ts-ignore
-      displayName: $(el).find('a').get(0)?.childNodes?.at(-2)?.['data'] ?? $(el).attr('class')!,
-    } satisfies PlaylistEpisodeServer)).get();
+    const servers = $('div.anime_muti_link > ul > li').map((i, el) => {
+      const displayName = $(el).find('a').get(0)?.childNodes.at(-2);
+      return {
+        id: $(el).attr('class') ?? `${BASENAME}/${req.episodeId}-${i}`,
+        displayName: displayName && displayName.nodeType === 3 ? displayName.data : $(el).attr('class') ?? 'NOT_FOUND',
+      } satisfies PlaylistEpisodeServer
+    }).get();
 
     return [{
       id: 'servers',
@@ -178,11 +195,11 @@ export default class Source extends SourceModule implements VideoContent {
           episodeEnd: a.attr('ep_end'),
         })
       }).get()
-      const movieId = $('#movie_id').attr('value')!
+      const movieId = $('#movie_id').attr('value')
       const pagings = await Promise.all(pages.map(async (page) => {
         const episodes = load(await request.get(`${AJAX_BASENAME}/load-list-episode?ep_start=${page.episodeStart}&ep_end=${page.episodeEnd}&id=${movieId}&default_ep=${0}&alias=${id}`).then(t => t.text()))
         const video = episodes('#episode_related > li').map((i, episode) => {
-          const link = episodes(episode).find('a').attr('href')?.slice(2)!
+          const link = episodes(episode).find('a').attr('href')?.slice(2) ?? id
           const title = $(episode).find('.name').text();
           return {
             id: link,
