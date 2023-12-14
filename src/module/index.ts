@@ -36,7 +36,7 @@ export default class Source extends SourceModule implements VideoContent {
   metadata = {
     id: 'GoGoAnimeSource',
     name: 'GoGoAnime Source',
-    version: '1.1.0',
+    version: '1.1.1',
   }
 
   async searchFilters(): Promise<SearchFilter[]>  {
@@ -50,7 +50,7 @@ export default class Source extends SourceModule implements VideoContent {
     const currentPageIndex = pages.filter('li.selected').index();
     const items: Playlist[] = $('.items > li').map((i, anime) => {
       const animeRef = $(anime);
-      const url = animeRef.find('div > a').attr('href')?.split('/').at(-1) ?? '';
+      const url = animeRef.find('div > a').attr('href')?.split('/').pop() ?? '';
       const name = animeRef.find('.name > a').text();
       const img = animeRef.find('.img > a > img').attr('src') ?? '';
       return {
@@ -100,7 +100,7 @@ export default class Source extends SourceModule implements VideoContent {
         const url = animeRef.find('div > a').attr('href') ?? '';
         const name = animeRef.find('.name > a').text();
         const img = animeRef.find('.img > a > img').attr('src') ?? '';
-        const id = url?.split('/').at(-1) ?? animeRef.find('.img > a > img').attr('alt') ?? `${page.id}-${i}`
+        const id = url?.split('/').pop() ?? animeRef.find('.img > a > img').attr('alt') ?? `${page.id}-${i}`
         return {
           id,
           url: `${BASENAME}${url}`,
@@ -167,7 +167,8 @@ export default class Source extends SourceModule implements VideoContent {
     const html = await request.get(`${BASENAME}/${req.episodeId}`).then(t => t.text())
     const $ = load(html)
     const servers = $('div.anime_muti_link > ul > li').map((i, el) => {
-      const displayName = $(el).find('a').get(0)?.childNodes.at(-2);
+      const nodes = $(el).find('a').get(0)?.childNodes ?? [];
+      const displayName = nodes.length > 2 ? nodes[nodes.length - 2] : undefined;
       return {
         id: $(el).attr('class') ?? `${BASENAME}/${req.episodeId}-${i}`,
         displayName: displayName && displayName.nodeType === 3 ? displayName.data : $(el).attr('class') ?? 'NOT_FOUND',

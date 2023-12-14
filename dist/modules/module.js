@@ -20980,7 +20980,7 @@ var source = (() => {
     metadata = {
       id: "GoGoAnimeSource",
       name: "GoGoAnime Source",
-      version: "1.1.0"
+      version: "1.1.1"
     };
     async searchFilters() {
       return [];
@@ -20992,7 +20992,7 @@ var source = (() => {
       const currentPageIndex = pages.filter("li.selected").index();
       const items = $2(".items > li").map((i, anime) => {
         const animeRef = $2(anime);
-        const url = animeRef.find("div > a").attr("href")?.split("/").at(-1) ?? "";
+        const url = animeRef.find("div > a").attr("href")?.split("/").pop() ?? "";
         const name = animeRef.find(".name > a").text();
         const img = animeRef.find(".img > a > img").attr("src") ?? "";
         return {
@@ -21040,7 +21040,7 @@ var source = (() => {
           const url = animeRef.find("div > a").attr("href") ?? "";
           const name = animeRef.find(".name > a").text();
           const img = animeRef.find(".img > a > img").attr("src") ?? "";
-          const id = url?.split("/").at(-1) ?? animeRef.find(".img > a > img").attr("alt") ?? `${page.id}-${i}`;
+          const id = url?.split("/").pop() ?? animeRef.find(".img > a > img").attr("alt") ?? `${page.id}-${i}`;
           return {
             id,
             url: `${BASENAME}${url}`,
@@ -21102,7 +21102,8 @@ var source = (() => {
       const html3 = await request.get(`${BASENAME}/${req.episodeId}`).then((t) => t.text());
       const $2 = load(html3);
       const servers = $2("div.anime_muti_link > ul > li").map((i, el) => {
-        const displayName = $2(el).find("a").get(0)?.childNodes.at(-2);
+        const nodes = $2(el).find("a").get(0)?.childNodes ?? [];
+        const displayName = nodes.length > 2 ? nodes[nodes.length - 2] : void 0;
         return {
           id: $2(el).attr("class") ?? `${BASENAME}/${req.episodeId}-${i}`,
           displayName: displayName && displayName.nodeType === 3 ? displayName.data : $2(el).attr("class") ?? "NOT_FOUND"
