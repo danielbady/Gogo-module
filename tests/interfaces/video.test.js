@@ -10,7 +10,10 @@ test("provides correct episodes playlist", async () => {
 
 test("provides correct episode playlist server", async () => {
   console.log(
-    await source.playlistEpisodeServer({ episodeId: "spy-x-family-episode-1" }),
+    await source.playlistEpisodeServer({
+      episodeId: "one-piece-episode-1",
+      playlistId: "one-piece",
+    }),
   );
 });
 
@@ -18,6 +21,7 @@ test("provides correct episode playlist source", async () => {
   console.log(
     await source.playlistEpisodeSources({
       episodeId: "spy-x-family-episode-1",
+      playlistId: "spy-x-family",
     }),
   );
 });
